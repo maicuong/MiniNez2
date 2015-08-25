@@ -8,8 +8,8 @@ typedef struct MiniNezInstruction {
 	short arg : 11;
 } MiniNezInstruction;
 
-union StackEntry {
-  int pos;
+struct StackEntry {
+  long pos;
   unsigned long jmp;
 };
 
@@ -22,7 +22,7 @@ struct Context {
   union StackEntry* stack_pointer_base;
 };
 
-typedef union StackEntry* StackEntry;
-typedef union Context* Context;
+typedef struct StackEntry* StackEntry;
+typedef struct Context* Context;
 
 #endif
