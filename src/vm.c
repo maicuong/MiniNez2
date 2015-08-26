@@ -30,6 +30,10 @@ static inline void push_pos(Context ctx, long pos) {
   (ctx->stack_pointer++)->pos = pos;
 }
 
+static inline void push_call(Context ctx, MiniNezInstruction* jmp) {
+  (ctx->stack_pointer++)->jmp = jmp;
+}
+
 static inline StackEntry pop(Context ctx) {
   return (--ctx->stack_pointer);
 }
@@ -38,8 +42,7 @@ static inline StackEntry pop(Context ctx) {
 
 long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   register const char *cur = ctx->inputs;
-  register int failflag = 0;
-  register const MiniNezInstruction *pc;
+  register MiniNezInstruction *pc;
   register long pos = 0;
 
 #ifdef MININEZ_USE_SWITCH_CASE_DISPATCH
@@ -55,7 +58,6 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
 #undef DEFINE_TABLE
     };
 #define DISPATCH_START(PC) DISPATCH_NEXT()
-#define DISPATCH_END()     ABORT();
 
 #if defined(MININEZ_USE_INDIRECT_THREADING)
 #define DISPATCH_NEXT() goto *__table[(pc++)->op]
@@ -64,6 +66,9 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   pos = top->pos;\
   pc = top->jmp;\
   goto *__table[pc->op];
+#define JUMP_ADDR(ADDR) JUMP(pc+=ADDR)
+#define JUMP(PC) goto *__table[(PC)->op]
+#define RET(PC) JUMP(pc = PC)
 #else
 #error please specify dispatch method
 #endif
@@ -78,6 +83,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
 #endif
 
   pc = inst + 1;
+  DISPATCH_START(pc);
 
   OP_CASE(Iexit) {
     return pc->arg;
@@ -90,39 +96,54 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   }
   OP_CASE(Ialt) {
     push_alt(ctx, pos, pc+pc->arg);
+    DISPATCH_NEXT();
   }
   OP_CASE(Isucc) {
-    pop();
+    pop(ctx);
+    DISPATCH_NEXT();
   }
   OP_CASE(Ijump) {
-
+    JUMP_ADDR(pc->arg);
   }
   OP_CASE(Icall) {
-
+    push_call(ctx, pc+1);
+    JUMP_ADDR(pc->arg);
   }
   OP_CASE(Iret) {
-
+    StackEntry top = pop(ctx);
+    RET(top->jmp);
   }
   OP_CASE(Ipos) {
-
+    push_pos(ctx, pos);
+    DISPATCH_NEXT();
   }
   OP_CASE(Iback) {
-
+    pos = pop(ctx)->pos;
+    DISPATCH_NEXT();
   }
   OP_CASE(Iskip) {
-
+    pop(ctx);
+    DISPATCH_NEXT();
   }
   OP_CASE(Ibyte) {
-
+    if(cur[pos] != pc->arg) {
+      fail();
+    }
+    ++pos;
+    DISPATCH_NEXT();
   }
   OP_CASE(Iany) {
-
+    if(cur[pos] == 0) {
+      fail();
+    }
+    ++pos;
+    DISPATCH_NEXT();
   }
   OP_CASE(Istr) {
-
+    // TODO
   }
   OP_CASE(Iset) {
-
+    // TODO
   }
   return 0;
 }
