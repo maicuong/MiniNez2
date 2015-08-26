@@ -21,10 +21,11 @@ Context mininez_CreateContext(const char *filename) {
   return ctx;
 }
 
-static inline void push_alt(Context ctx, long pos, MiniNezInstruction* jmp) {
+static inline StackEntry push_alt(Context ctx, long pos, MiniNezInstruction* jmp, StackEntry fp) {
   ctx->stack_pointer->pos = pos;
   ctx->stack_pointer->jmp = jmp;
-  ctx->stack_pointer++;
+  ctx->stack_pointer->failPoint = fp;
+  return ctx->stack_pointer++;
 }
 
 static inline void push_pos(Context ctx, long pos) {
@@ -45,6 +46,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   register const char *cur = ctx->inputs;
   register MiniNezInstruction *pc;
   register long pos = 0;
+  register StackEntry failPoint;
 
 #ifdef MININEZ_USE_SWITCH_CASE_DISPATCH
 #define DISPATCH_NEXT()         goto L_vm_head
@@ -61,11 +63,13 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
 #define DISPATCH_START(PC) DISPATCH_NEXT()
 
 #if defined(MININEZ_USE_INDIRECT_THREADING)
-#define DISPATCH_NEXT() goto *__table[(pc++)->op]
+#define DISPATCH_NEXT() goto *__table[(++pc)->op]
 #define fail() \
-  StackEntry top = (--ctx->stack_pointer);\
-  pos = top->pos;\
-  pc = top->jmp;\
+  StackEntry fp = (failPoint);\
+  pos = fp->pos;\
+  pc = fp->jmp;\
+  failPoint = fp->failPoint;\
+  ctx->stack_pointer = failPoint;\
   goto *__table[pc->op];
 #define JUMP_ADDR(ADDR) JUMP(pc+=ADDR)
 #define JUMP(PC) goto *__table[(PC)->op]
@@ -83,10 +87,13 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
 #define OP_CASE(OP) OP_CASE_(OP)
 #endif
 
-  pc = inst + 1;
+  failPoint = push_alt(ctx, pos, inst, ctx->stack_pointer);
+  push_call(ctx, inst+1);
+  pc = inst + 2;
   DISPATCH_START(pc);
 
   OP_CASE(Iexit) {
+    fprintf(stderr, "exit %d\n", pc->arg);
     return pc->arg;
   }
   OP_CASE(Inop) {
@@ -96,7 +103,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     fail();
   }
   OP_CASE(Ialt) {
-    push_alt(ctx, pos, pc+pc->arg);
+    failPoint = push_alt(ctx, pos, pc+pc->arg, failPoint);
     DISPATCH_NEXT();
   }
   OP_CASE(Isucc) {
@@ -146,6 +153,9 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   OP_CASE(Iset) {
     // TODO
   }
+  OP_CASE(Ilabel) {
+    DISPATCH_NEXT();
+  }
   return 0;
 }
 
@@ -190,5 +200,10 @@ int main(int argc, char *const argv[]) {
   }
   ctx = mininez_CreateContext(input_file);
   inst = loadMachineCode(ctx, syntax_file, "File");
+  if(!mininez_vm_execute(ctx, inst)) {
+    nez_PrintErrorInfo("parse error!!");
+  } else {
+    fprintf(stderr, "match!!\n");
+  }
   return 0;
 }

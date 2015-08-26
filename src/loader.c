@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <moz/pstring.h>
 
 #include "vm.h"
 
@@ -40,6 +41,16 @@ char *loadFile(const char *filename, size_t *length) {
   return source;
 }
 
+static char *peek(char* inputs, ByteCodeInfo *info)
+{
+    return inputs + info->pos;
+}
+
+static void skip(ByteCodeInfo *info, size_t shift)
+{
+    info->pos += shift;
+}
+
 static inline uint8_t read8(char* inputs, ByteCodeInfo *info) {
   return (uint8_t)inputs[info->pos++];
 }
@@ -56,12 +67,16 @@ static uint32_t read32(char *inputs, ByteCodeInfo *info) {
   return value;
 }
 
-static uint32_t Loader_Read32(ByteCodeLoader *loader) {
-  return read32(loader->input, loader->info);
+static uint8_t Loader_Read8(ByteCodeLoader *loader) {
+  return read8(loader->input, loader->info);
 }
 
-static short Loader_Read16(ByteCodeLoader *loader) {
+static uint16_t Loader_Read16(ByteCodeLoader *loader) {
   return read16(loader->input, loader->info);
+}
+
+static uint32_t Loader_Read32(ByteCodeLoader *loader) {
+  return read32(loader->input, loader->info);
 }
 
 static void dumpByteCodeInfo(ByteCodeInfo *info) {
@@ -74,15 +89,48 @@ static void dumpByteCodeInfo(ByteCodeInfo *info) {
   fprintf(stderr, "strPoolSize: %u\n", info->strPoolSize);
 }
 
+void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Context ctx) {
+  unsigned i;
+  // exit fail case
+  ir->op = MININEZ_OP_Iexit;
+  ir->arg = 0;
+  fprintf(stderr, "[0]%s %d\n", get_opname(ir->op), ir->arg);
+  ir++;
+  // exit success case
+  ir->op = MININEZ_OP_Iexit;
+  ir->arg = 1;
+  fprintf(stderr, "[1]%s %d\n", get_opname(ir->op), ir->arg);
+  ir++;
+  for(i = 2; i < loader->info->instSize; i++) {
+    uint8_t opcode = Loader_Read8(loader);
+    fprintf(stderr, "[%u]%s", i, get_opname(opcode));
+    switch (opcode) {
+      case MININEZ_OP_Ibyte:
+        ir->arg = Loader_Read8(loader);
+        fprintf(stderr, " '%c'", ir->arg);
+        break;
+      case 127:
+        opcode = MININEZ_OP_Ilabel;
+        uint16_t label = Loader_Read16(loader);
+        ir->arg = label;
+        break;
+    }
+    fprintf(stderr, "\n");
+    ir->op = opcode;
+    ir++;
+  }
+}
+
 MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const char* start_point) {
+  unsigned i;
   MiniNezInstruction* inst = NULL;
   MiniNezInstruction* head = NULL;
-  size_t len;
-  char* buf = loadFile(code_file, &len);
+  size_t code_length;
+  char* buf = loadFile(code_file, &code_length);
   ByteCodeInfo info;
   info.pos = 0;
 
-  fprintf(stderr, "%zu\n", len);
+  fprintf(stderr, "Bytecode file size: %zu[byte]\n", code_length);
   /* load bytecode header */
 
   /* load file type */
@@ -93,14 +141,25 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
 
   /* load nez version */
   info.version = read8(buf, &info);
-  info.instSize = read16(buf, &info);
+
+  /* load instruction size */
+  info.instSize = read16(buf, &info) + 2;
+
   assert(read16(buf, &info) == 0); // mininez doesn't use memo size
+
+  /* load jump table size */
   info.jmpTableSize = read16(buf, &info);
-  dumpByteCodeInfo(&info);
 
   info.nonTermPoolSize = read16(buf, &info);
   if(info.nonTermPoolSize > 0) {
-    // TODO
+    ctx->nterms = (const char**) malloc(sizeof(const char*) * info.nonTermPoolSize);
+    for(i = 0; i < info.nonTermPoolSize; i++) {
+      uint16_t len = read16(buf, &info);
+      char* str = peek(buf, &info);
+      skip(&info, len+1);
+      ctx->nterms[i] = pstring_alloc(str, (unsigned)len);
+      fprintf(stderr, "nterm[%d]: %s\n", i, ctx->nterms[i]);
+    }
   }
 
   info.setPoolSize = read16(buf, &info);
@@ -113,8 +172,25 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
     // TODO
   }
 
+  dumpByteCodeInfo(&info);
+
   assert(read16(buf, &info) == 0); // mininez doesn't use tag
   assert(read16(buf, &info) == 0); // mininez doesn't use symbol table
+
+  /*
+  ** head is a tmporary variable that indecates the begining
+  ** of the instruction sequence
+  */
+  head = inst = malloc(sizeof(*inst) * info.instSize);
+  memset(inst, 0, sizeof(*inst) * info.instSize);
+
+  /* init bytecode loader */
+  ByteCodeLoader *loader = malloc(sizeof(ByteCodeLoader));
+  loader->input = buf;
+  loader->info = &info;
+  loader->head = head;
+
+  loadMiniNezInstruction(head, loader, ctx);
 
   return head;
 }

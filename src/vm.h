@@ -8,7 +8,6 @@
 #define MININEZ_DEBUG 0
 
 #define MININEZ_IR_EACH(OP)\
-	OP(Iexit)\
 	OP(Inop)\
 	OP(Ifail)\
 	OP(Ialt)\
@@ -22,7 +21,9 @@
 	OP(Ibyte)\
 	OP(Iany)\
 	OP(Istr)\
-	OP(Iset)
+	OP(Iset)\
+	OP(Iexit)\
+	OP(Ilabel)
 
 enum nezvm_opcode {
 #define DEFINE_ENUM(NAME) MININEZ_OP_##NAME,
@@ -39,6 +40,7 @@ typedef struct MiniNezInstruction {
 struct StackEntry {
   long pos;
   MiniNezInstruction* jmp;
+	struct StackEntry* failPoint;
 };
 
 struct Context {
@@ -48,6 +50,8 @@ struct Context {
   size_t stack_size;
   struct StackEntry* stack_pointer;
   struct StackEntry* stack_pointer_base;
+
+	const char** nterms;
 };
 #define CONTEXT_MAX_STACK_LENGTH 1024
 
@@ -60,6 +64,8 @@ static const char *get_opname(uint8_t opcode) {
   case MININEZ_OP_##OP:   \
     return "" #OP;
     MININEZ_IR_EACH(OP_DUMPCASE);
+	case 127:
+		return "Ilabel";
   default:
     fprintf(stderr, "%d\n", opcode);
     assert(0 && "UNREACHABLE");
