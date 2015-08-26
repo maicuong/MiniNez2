@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <assert.h>
+#include <moz/bitset.h>
+#include <moz/pstring.h>
 
 #ifndef VM_H
 #define VM_H
@@ -52,6 +54,7 @@ struct Context {
   struct StackEntry* stack_pointer_base;
 
 	const char** nterms;
+	bitset_t* sets;
 };
 #define CONTEXT_MAX_STACK_LENGTH 1024
 

@@ -3,6 +3,10 @@
 
 #include "vm.h"
 
+#ifndef CHAR_BIT
+#define CHAR_BIT 8
+#endif
+
 typedef struct ByteCodeInfo {
   int pos;
   char fileType[4];
@@ -89,6 +93,74 @@ static void dumpByteCodeInfo(ByteCodeInfo *info) {
   fprintf(stderr, "strPoolSize: %u\n", info->strPoolSize);
 }
 
+static char *write_char(char *p, unsigned char ch)
+{
+    switch (ch) {
+    case '\\':
+        *p++ = '\\';
+        break;
+    case '\b':
+        *p++ = '\\';
+        *p++ = 'b';
+        break;
+    case '\f':
+        *p++ = '\\';
+        *p++ = 'f';
+        break;
+    case '\n':
+        *p++ = '\\';
+        *p++ = 'n';
+        break;
+    case '\r':
+        *p++ = '\\';
+        *p++ = 'r';
+        break;
+    case '\t':
+        *p++ = '\\';
+        *p++ = 't';
+        break;
+    default:
+        if (32 <= ch && ch <= 126) {
+            *p++ = ch;
+        }
+        else {
+            *p++ = '\\';
+            *p++ = "0123456789abcdef"[ch / 16];
+            *p++ = "0123456789abcdef"[ch % 16];
+        }
+    }
+    return p;
+}
+
+static void dump_set(bitset_t *set, char *buf)
+{
+    unsigned i, j;
+    *buf++ = '[';
+    for (i = 0; i < 256; i++) {
+        if (bitset_get(set, i)) {
+            buf = write_char(buf, i);
+            for (j = i + 1; j < 256; j++) {
+                if (!bitset_get(set, j)) {
+                    if (j == i + 1) {}
+                    else {
+                        *buf++ = '-';
+                        buf = write_char(buf, j - 1);
+                        i = j - 1;
+                    }
+                    break;
+                }
+            }
+            if (j == 256) {
+                *buf++ = '-';
+                buf = write_char(buf, j - 1);
+                break;
+            }
+        }
+    }
+    *buf++ = ']';
+    *buf++ = '\0';
+}
+
 void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Context ctx) {
   unsigned i;
   // exit fail case
@@ -108,6 +180,10 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
       case MININEZ_OP_Ibyte:
         ir->arg = Loader_Read8(loader);
         fprintf(stderr, " '%c'", ir->arg);
+        break;
+      case MININEZ_OP_Iset:
+        ir->arg = Loader_Read16(loader);
+        fprintf(stderr, " %u", ir->arg);
         break;
       case 127:
         opcode = MININEZ_OP_Ilabel;
@@ -145,7 +221,7 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
   /* load instruction size */
   info.instSize = read16(buf, &info) + 2;
 
-  assert(read16(buf, &info) == 0); // mininez doesn't use memo size
+  read16(buf, &info); // mininez doesn't use memo size
 
   /* load jump table size */
   info.jmpTableSize = read16(buf, &info);
@@ -164,7 +240,26 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
 
   info.setPoolSize = read16(buf, &info);
   if(info.setPoolSize > 0) {
-    // TODO
+    ctx->sets = (bitset_t*) malloc(sizeof(bitset_t) * info.setPoolSize);
+#define INT_BIT (sizeof(int) * CHAR_BIT)
+#define N (256 / INT_BIT)
+    for (i = 0; i < info.setPoolSize; i++) {
+      unsigned j, k;
+      char debug_buf[512] = {};
+      bitset_t *set = &ctx->sets[i];
+      bitset_init(set);
+      for (j = 0; j < 256/INT_BIT; j++) {
+        unsigned v = read32(buf, &info);
+        for (k = 0; k < INT_BIT; k++) {
+          unsigned mask = 1U << k;
+          if ((v & mask) == mask) {
+            bitset_set(set, k + INT_BIT * j);
+          }
+        }
+      }
+      dump_set(set, debug_buf);
+      fprintf(stderr, "set: %s\n", debug_buf);
+    }
   }
 
   info.strPoolSize = read16(buf, &info);
@@ -174,8 +269,8 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
 
   dumpByteCodeInfo(&info);
 
-  assert(read16(buf, &info) == 0); // mininez doesn't use tag
-  assert(read16(buf, &info) == 0); // mininez doesn't use symbol table
+  read16(buf, &info) == 0; // mininez doesn't use tag
+  read16(buf, &info) == 0; // mininez doesn't use symbol table
 
   /*
   ** head is a tmporary variable that indecates the begining

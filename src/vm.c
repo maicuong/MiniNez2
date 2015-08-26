@@ -151,7 +151,12 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     // TODO
   }
   OP_CASE(Iset) {
-    // TODO
+    bitset_t set = ctx->sets[pc->arg];
+    if (!bitset_get(&set, cur[pos])) {
+        fail();
+    }
+    ++pos;
+    DISPATCH_NEXT();
   }
   OP_CASE(Ilabel) {
     DISPATCH_NEXT();
