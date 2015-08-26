@@ -2,19 +2,20 @@
 
 #include "vm.h"
 
-typedef struct byteCodeInfo {
+typedef struct ByteCodeInfo {
   int pos;
-  uint8_t version0;
-  uint8_t version1;
-  uint32_t filename_length;
-  uint8_t *filename;
-  uint32_t pool_size_info;
-  uint64_t bytecode_length;
-} byteCodeInfo;
+  char fileType[4];
+  uint8_t version;
+  uint16_t instSize;
+  uint16_t jmpTableSize;
+  uint16_t nonTermPoolSize;
+  uint16_t setPoolSize;
+  uint16_t strPoolSize;
+} ByteCodeInfo;
 
 typedef struct ByteCodeLoader {
   char *input;
-  byteCodeInfo *info;
+  ByteCodeInfo *info;
   MiniNezInstruction *head;
 } ByteCodeLoader;
 
@@ -39,25 +40,20 @@ char *loadFile(const char *filename, size_t *length) {
   return source;
 }
 
-static short read16(char *inputs, byteCodeInfo *info) {
+static inline uint8_t read8(char* inputs, ByteCodeInfo *info) {
+  return (uint8_t)inputs[info->pos++];
+}
+
+static uint16_t read16(char *inputs, ByteCodeInfo *info) {
   uint16_t value = (uint8_t)inputs[info->pos++];
-  value = (value) | ((uint8_t)inputs[info->pos++] << 8);
+  value = ((value) << 8) | ((uint8_t)inputs[info->pos++]);
   return value;
 }
 
-static int read32(char *inputs, byteCodeInfo *info) {
-  uint32_t value = 0;
-  value = (uint8_t)inputs[info->pos++];
-  value = (value) | ((uint8_t)inputs[info->pos++] << 8);
-  value = (value) | ((uint8_t)inputs[info->pos++] << 16);
-  value = (value) | ((uint8_t)inputs[info->pos++] << 24);
+static uint32_t read32(char *inputs, ByteCodeInfo *info) {
+  uint32_t value = read16(inputs, info);
+  value = ((value) << 16) | read16(inputs, info);
   return value;
-}
-
-static long read64(char *inputs, byteCodeInfo *info) {
-  uint64_t value1 = read32(inputs, info);
-  uint64_t value2 = read32(inputs, info);
-  return value2 << 32 | value1;
 }
 
 static uint32_t Loader_Read32(ByteCodeLoader *loader) {
@@ -68,11 +64,57 @@ static short Loader_Read16(ByteCodeLoader *loader) {
   return read16(loader->input, loader->info);
 }
 
+static void dumpByteCodeInfo(ByteCodeInfo *info) {
+  fprintf(stderr, "FileType: %s\n", info->fileType);
+  fprintf(stderr, "Version: %c\n", info->version);
+  fprintf(stderr, "InstSize: %u\n", info->instSize);
+  fprintf(stderr, "jmpTableSize: %u\n", info->jmpTableSize);
+  fprintf(stderr, "nonTermPoolSize: %u\n", info->nonTermPoolSize);
+  fprintf(stderr, "setPoolSize: %u\n", info->setPoolSize);
+  fprintf(stderr, "strPoolSize: %u\n", info->strPoolSize);
+}
+
 MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const char* start_point) {
   MiniNezInstruction* inst = NULL;
   MiniNezInstruction* head = NULL;
   size_t len;
   char* buf = loadFile(code_file, &len);
+  ByteCodeInfo info;
+  info.pos = 0;
+
+  fprintf(stderr, "%zu\n", len);
+  /* load bytecode header */
+
+  /* load file type */
+  info.fileType[0] = read8(buf, &info);
+  info.fileType[1] = read8(buf, &info);
+  info.fileType[2] = read8(buf, &info);
+  info.fileType[3] = 0;
+
+  /* load nez version */
+  info.version = read8(buf, &info);
+  info.instSize = read16(buf, &info);
+  assert(read16(buf, &info) == 0); // mininez doesn't use memo size
+  info.jmpTableSize = read16(buf, &info);
+  dumpByteCodeInfo(&info);
+
+  info.nonTermPoolSize = read16(buf, &info);
+  if(info.nonTermPoolSize > 0) {
+    // TODO
+  }
+
+  info.setPoolSize = read16(buf, &info);
+  if(info.setPoolSize > 0) {
+    // TODO
+  }
+
+  info.strPoolSize = read16(buf, &info);
+  if(info.strPoolSize > 0) {
+    // TODO
+  }
+
+  assert(read16(buf, &info) == 0); // mininez doesn't use tag
+  assert(read16(buf, &info) == 0); // mininez doesn't use symbol table
 
   return head;
 }

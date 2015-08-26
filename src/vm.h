@@ -70,5 +70,6 @@ static const char *get_opname(uint8_t opcode) {
 }
 
 void nez_PrintErrorInfo(const char *errmsg);
+MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const char* start_point);
 
 #endif

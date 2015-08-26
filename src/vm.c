@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <getopt.h>
 
 #include "vm.h"
 
@@ -9,7 +10,7 @@ void nez_PrintErrorInfo(const char *errmsg) {
   exit(EXIT_FAILURE);
 }
 
-Context nez_CreateParsingContext(const char *filename) {
+Context mininez_CreateContext(const char *filename) {
   Context ctx = (Context)malloc(sizeof(struct Context));
   ctx->input_size = 0;
   ctx->inputs = loadFile(filename, &ctx->input_size);
@@ -148,6 +149,46 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   return 0;
 }
 
-int main(void) {
+static void nez_ShowUsage(const char *file) {
+  // fprintf(stderr, "Usage: %s -f nez_bytecode target_file\n", file);
+  fprintf(stderr, "\nnezvm <command> optional files\n");
+  fprintf(stderr, "  -p <filename> Specify an PEGs grammar bytecode file\n");
+  fprintf(stderr, "  -i <filename> Specify an input file\n");
+  fprintf(stderr, "  -o <filename> Specify an output file\n");
+  fprintf(stderr, "  -t <type>     Specify an output type\n");
+  fprintf(stderr, "  -h            Display this help and exit\n\n");
+  exit(EXIT_FAILURE);
+}
+
+int main(int argc, char *const argv[]) {
+  Context ctx = NULL;
+  MiniNezInstruction *inst = NULL;
+  const char *syntax_file = NULL;
+  const char *input_file = NULL;
+  const char *output_type = NULL;
+  const char *orig_argv0 = argv[0];
+  int opt;
+  while ((opt = getopt(argc, argv, "p:i:t:o:c:h:")) != -1) {
+    switch (opt) {
+    case 'p':
+      syntax_file = optarg;
+      break;
+    case 'i':
+      input_file = optarg;
+      break;
+    case 't':
+      output_type = optarg;
+      break;
+    case 'h':
+      nez_ShowUsage(orig_argv0);
+    default: /* '?' */
+      nez_ShowUsage(orig_argv0);
+    }
+  }
+  if (syntax_file == NULL) {
+    nez_PrintErrorInfo("not input syntaxfile");
+  }
+  ctx = mininez_CreateContext(input_file);
+  inst = loadMachineCode(ctx, syntax_file, "File");
   return 0;
 }
