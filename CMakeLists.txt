@@ -34,6 +34,7 @@ endif(MSVC)
 ## Source Code settings
 set(MININEZ_SOURCE
 			src/vm.c
+			src/loader.c
 )
 
 set(PACKAGE_NAME    ${PROJECT_NAME})
