@@ -7,7 +7,7 @@
 #ifndef VM_H
 #define VM_H
 
-#define MININEZ_DEBUG 0
+#define MININEZ_DEBUG 1
 
 #define MININEZ_IR_EACH(OP)\
 	OP(Inop)\

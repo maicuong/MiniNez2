@@ -191,12 +191,20 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
     opcode = opcode & 0x7f;
     fprintf(stderr, "[%u]%s", i, get_opname(opcode));
     switch (opcode) {
+      case MININEZ_OP_Icall:
+        Loader_Read24(loader);
+        int nterm = Loader_Read16(loader);
+        ir->arg = Loader_Read24(loader);
+        has_jump = 0;
+        fprintf(stderr, " %d %d", nterm, ir->arg);
+        break;
       case MININEZ_OP_Ialt:
         ir->arg = Loader_Read24(loader);
         fprintf(stderr, " %d", ir->arg);
         break;
       case MININEZ_OP_Iskip:
         ir->arg = Loader_Read24(loader);
+        has_jump = 0;
         fprintf(stderr, " %d", ir->arg);
         break;
       case MININEZ_OP_Ibyte:
@@ -213,6 +221,9 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
         uint16_t label = Loader_Read16(loader);
         ir->arg = label;
         break;
+    }
+    if (has_jump) {
+      int jump = Loader_Read24(loader);
     }
     fprintf(stderr, "\n");
     ir->op = opcode;

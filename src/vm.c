@@ -75,7 +75,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   failPoint = fp->failPoint;\
   ctx->stack_pointer = fp;\
   goto *__table[pc->op];
-#define JUMP_ADDR(ADDR) JUMP(inst+=ADDR)
+#define JUMP_ADDR(ADDR) JUMP(pc = inst + ADDR)
 #define JUMP(PC) goto *__table[(PC)->op]
 #define RET(PC) JUMP(pc = PC)
 #else
@@ -86,7 +86,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
 #define OP_CASE_(OP) LABEL(OP):
 
 #if MININEZ_DEBUG == 1
-#define OP_CASE(OP) OP_CASE_(OP); fprintf(stderr, "%s\n", get_opname(pc->op);
+#define OP_CASE(OP) OP_CASE_(OP); fprintf(stderr, "%s (pos:%ld)\n", get_opname(pc->op), pos);
 #else
 #define OP_CASE(OP) OP_CASE_(OP)
 #endif
@@ -121,7 +121,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   }
   OP_CASE(Icall) {
     push_call(ctx, pc+1);
-    JUMP_ADDR(pc->arg);
+    JUMP_ADDR(pc->arg+1);
   }
   OP_CASE(Iret) {
     StackEntry top = pop(ctx);
@@ -175,6 +175,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     DISPATCH_NEXT();
   }
   OP_CASE(Ilabel) {
+    fprintf(stderr, "%s\n", ctx->nterms[pc->arg]);
     DISPATCH_NEXT();
   }
   return 0;
