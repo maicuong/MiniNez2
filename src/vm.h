@@ -48,6 +48,7 @@ struct StackEntry {
 struct Context {
   char *inputs;
   size_t input_size;
+	long pos;
 
   size_t stack_size;
   struct StackEntry* stack_pointer;

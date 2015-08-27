@@ -97,6 +97,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   DISPATCH_START(pc);
 
   OP_CASE(Iexit) {
+    ctx->pos = pos;
     fprintf(stderr, "exit %d\n", pc->arg);
     return pc->arg;
   }
@@ -111,7 +112,8 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     DISPATCH_NEXT();
   }
   OP_CASE(Isucc) {
-    pop(ctx);
+    ctx->stack_pointer = failPoint;
+    failPoint = failPoint->failPoint;
     DISPATCH_NEXT();
   }
   OP_CASE(Ijump) {
@@ -138,7 +140,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     if(pos == top->pos) {
       fail();
     }
-    top->pos = pos;
+    failPoint->pos = pos;
     JUMP_ADDR(pc->arg+2);
   }
   OP_CASE(Ibyte) {
@@ -221,6 +223,8 @@ int main(int argc, char *const argv[]) {
   inst = loadMachineCode(ctx, syntax_file, "File");
   if(!mininez_vm_execute(ctx, inst)) {
     nez_PrintErrorInfo("parse error!!");
+  } else if(ctx->pos != (long)ctx->input_size) {
+    fprintf(stderr, "unconsumed!! pos=%ld size=%zu", ctx->pos, ctx->input_size);
   } else {
     fprintf(stderr, "match!!\n");
   }
