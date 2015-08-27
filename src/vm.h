@@ -55,6 +55,7 @@ struct Context {
 
 	const char** nterms;
 	bitset_t* sets;
+	const char** strs;
 };
 #define CONTEXT_MAX_STACK_LENGTH 1024
 

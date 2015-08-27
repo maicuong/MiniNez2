@@ -36,6 +36,10 @@ static inline void push_call(Context ctx, MiniNezInstruction* jmp) {
   (ctx->stack_pointer++)->jmp = jmp;
 }
 
+static inline StackEntry peek(Context ctx) {
+  return ctx->stack_pointer;
+}
+
 static inline StackEntry pop(Context ctx) {
   return (--ctx->stack_pointer);
 }
@@ -46,7 +50,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   register const char *cur = ctx->inputs;
   register MiniNezInstruction *pc;
   register long pos = 0;
-  register StackEntry failPoint;
+  register StackEntry failPoint = ctx->stack_pointer;
 
 #ifdef MININEZ_USE_SWITCH_CASE_DISPATCH
 #define DISPATCH_NEXT()         goto L_vm_head
@@ -69,9 +73,9 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   pos = fp->pos;\
   pc = fp->jmp;\
   failPoint = fp->failPoint;\
-  ctx->stack_pointer = failPoint;\
+  ctx->stack_pointer = fp;\
   goto *__table[pc->op];
-#define JUMP_ADDR(ADDR) JUMP(pc+=ADDR)
+#define JUMP_ADDR(ADDR) JUMP(inst+=ADDR)
 #define JUMP(PC) goto *__table[(PC)->op]
 #define RET(PC) JUMP(pc = PC)
 #else
@@ -103,7 +107,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     fail();
   }
   OP_CASE(Ialt) {
-    failPoint = push_alt(ctx, pos, pc+pc->arg, failPoint);
+    failPoint = push_alt(ctx, pos, inst+pc->arg+2, failPoint);
     DISPATCH_NEXT();
   }
   OP_CASE(Isucc) {
@@ -130,8 +134,12 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     DISPATCH_NEXT();
   }
   OP_CASE(Iskip) {
-    pop(ctx);
-    DISPATCH_NEXT();
+    StackEntry top = peek(ctx);
+    if(pos == top->pos) {
+      fail();
+    }
+    top->pos = pos;
+    JUMP_ADDR(pc->arg+2);
   }
   OP_CASE(Ibyte) {
     if(cur[pos] != pc->arg) {
@@ -148,12 +156,18 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     DISPATCH_NEXT();
   }
   OP_CASE(Istr) {
-    // TODO
+    const char* str = ctx->strs[pc->arg];
+    unsigned len = pstring_length(str);
+    if (pstring_starts_with(cur+pos, str, len) == 0) {
+      fail();
+    }
+    pos += len;
+    DISPATCH_NEXT();
   }
   OP_CASE(Iset) {
     bitset_t set = ctx->sets[pc->arg];
     if (!bitset_get(&set, cur[pos])) {
-        fail();
+      fail();
     }
     ++pos;
     DISPATCH_NEXT();

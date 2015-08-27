@@ -65,6 +65,14 @@ static uint16_t read16(char *inputs, ByteCodeInfo *info) {
   return value;
 }
 
+static unsigned read24(char *inputs, ByteCodeInfo *info)
+{
+    unsigned d1 = read8(inputs, info);
+    unsigned d2 = read8(inputs, info);
+    unsigned d3 = read8(inputs, info);
+    return d1 << 16 | d2 << 8 | d3;
+}
+
 static uint32_t read32(char *inputs, ByteCodeInfo *info) {
   uint32_t value = read16(inputs, info);
   value = ((value) << 16) | read16(inputs, info);
@@ -77,6 +85,10 @@ static uint8_t Loader_Read8(ByteCodeLoader *loader) {
 
 static uint16_t Loader_Read16(ByteCodeLoader *loader) {
   return read16(loader->input, loader->info);
+}
+
+static unsigned Loader_Read24(ByteCodeLoader *loader) {
+  return read24(loader->input, loader->info);
 }
 
 static uint32_t Loader_Read32(ByteCodeLoader *loader) {
@@ -175,12 +187,23 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
   ir++;
   for(i = 2; i < loader->info->instSize; i++) {
     uint8_t opcode = Loader_Read8(loader);
+    int has_jump = opcode & 0x80;
+    opcode = opcode & 0x7f;
     fprintf(stderr, "[%u]%s", i, get_opname(opcode));
     switch (opcode) {
+      case MININEZ_OP_Ialt:
+        ir->arg = Loader_Read24(loader);
+        fprintf(stderr, " %d", ir->arg);
+        break;
+      case MININEZ_OP_Iskip:
+        ir->arg = Loader_Read24(loader);
+        fprintf(stderr, " %d", ir->arg);
+        break;
       case MININEZ_OP_Ibyte:
         ir->arg = Loader_Read8(loader);
         fprintf(stderr, " '%c'", ir->arg);
         break;
+      case MININEZ_OP_Istr:
       case MININEZ_OP_Iset:
         ir->arg = Loader_Read16(loader);
         fprintf(stderr, " %u", ir->arg);
@@ -264,13 +287,20 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
 
   info.strPoolSize = read16(buf, &info);
   if(info.strPoolSize > 0) {
-    // TODO
+    ctx->strs = (const char **) malloc(sizeof(const char *) * info.strPoolSize);
+    for (i = 0; i < info.strPoolSize; i++) {
+      uint16_t len = read16(buf, &info);
+      char *str = peek(buf, &info);
+      skip(&info, len + 1);
+      ctx->strs[i] = pstring_alloc(str, (unsigned)len);
+      fprintf(stderr, "str[%d]: '%s'\n", i, ctx->strs[i]);
+    }
   }
 
   dumpByteCodeInfo(&info);
 
-  read16(buf, &info) == 0; // mininez doesn't use tag
-  read16(buf, &info) == 0; // mininez doesn't use symbol table
+  read16(buf, &info); // mininez doesn't use tag
+  read16(buf, &info); // mininez doesn't use symbol table
 
   /*
   ** head is a tmporary variable that indecates the begining
