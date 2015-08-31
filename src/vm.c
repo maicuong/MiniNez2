@@ -93,7 +93,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
 
   failPoint = push_alt(ctx, pos, inst, ctx->stack_pointer);
   push_call(ctx, inst+1);
-  pc = inst + 2;
+  pc = inst + 1;
   DISPATCH_START(pc);
 
   OP_CASE(Iexit) {
@@ -108,7 +108,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     fail();
   }
   OP_CASE(Ialt) {
-    failPoint = push_alt(ctx, pos, inst+pc->arg+2, failPoint);
+    failPoint = push_alt(ctx, pos, inst+pc->arg, failPoint);
     DISPATCH_NEXT();
   }
   OP_CASE(Isucc) {
