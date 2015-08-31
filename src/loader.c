@@ -199,14 +199,19 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
         ir->arg = Loader_Read8(loader);
         break;
       case MININEZ_OP_Icall:
-        Loader_Read24(loader);
-        int nterm = Loader_Read16(loader);
         ir->arg = Loader_Read24(loader);
+        uint16_t nterm = Loader_Read16(loader);
+        // Loader_Read24(loader);
         has_jump = 0;
-        fprintf(stderr, " %d %d", nterm, ir->arg);
+        fprintf(stderr, " %u %d", nterm, ir->arg);
         break;
       case MININEZ_OP_Ialt:
         ir->arg = Loader_Read24(loader);
+        fprintf(stderr, " %d", ir->arg);
+        break;
+      case MININEZ_OP_Ijump:
+        ir->arg = Loader_Read24(loader);
+        has_jump = 0;
         fprintf(stderr, " %d", ir->arg);
         break;
       case MININEZ_OP_Iskip:

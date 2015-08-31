@@ -121,7 +121,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   }
   OP_CASE(Icall) {
     push_call(ctx, pc+1);
-    JUMP_ADDR(pc->arg+1);
+    JUMP_ADDR(pc->arg);
   }
   OP_CASE(Iret) {
     StackEntry top = pop(ctx);
@@ -141,7 +141,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
       fail();
     }
     failPoint->pos = pos;
-    JUMP_ADDR(pc->arg+2);
+    JUMP_ADDR(pc->arg);
   }
   OP_CASE(Ibyte) {
     if(cur[pos] != pc->arg) {
