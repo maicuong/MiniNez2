@@ -178,15 +178,15 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
   unsigned i;
   MiniNezInstruction* head = ir;
   // exit fail case
-  // ir->op = MININEZ_OP_Iexit;
-  // ir->arg = 0;
-  // fprintf(stderr, "[0]%s %d\n", get_opname(ir->op), ir->arg);
-  // ir++;
+  ir->op = MININEZ_OP_Iexit;
+  ir->arg = 0;
+  fprintf(stderr, "[0]%s %d\n", get_opname(ir->op), ir->arg);
+  ir++;
   // exit success case
-  // ir->op = MININEZ_OP_Iexit;
-  // ir->arg = 1;
-  // fprintf(stderr, "[1]%s %d\n", get_opname(ir->op), ir->arg);
-  // ir++;
+  ir->op = MININEZ_OP_Iexit;
+  ir->arg = 1;
+  fprintf(stderr, "[1]%s %d\n", get_opname(ir->op), ir->arg);
+  ir++;
   int size = loader->info->instSize;
   for(i = 0; i < loader->info->instSize; i++) {
     assert(loader->info->pos < (int)loader->info->code_length);
@@ -199,23 +199,28 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
         ir->arg = Loader_Read8(loader);
         break;
       case MININEZ_OP_Icall:
-        ir->arg = Loader_Read24(loader);
+        Loader_Read24(loader) + 2;
         uint16_t nterm = Loader_Read16(loader);
-        // Loader_Read24(loader);
+        ir->arg = Loader_Read24(loader) + 2;
         has_jump = 0;
         fprintf(stderr, " %u %d", nterm, ir->arg);
         break;
       case MININEZ_OP_Ialt:
-        ir->arg = Loader_Read24(loader);
+        ir->arg = Loader_Read24(loader) + 2;
         fprintf(stderr, " %d", ir->arg);
         break;
       case MININEZ_OP_Ijump:
-        ir->arg = Loader_Read24(loader);
+        if(has_jump) {
+          ir->arg = Loader_Read24(loader) + 2;
+        } else {
+          ir->arg = ir - head + 1;
+        }
+        Loader_Read24(loader);
         has_jump = 0;
         fprintf(stderr, " %d", ir->arg);
         break;
       case MININEZ_OP_Iskip:
-        ir->arg = Loader_Read24(loader);
+        ir->arg = Loader_Read24(loader) + 2;
         has_jump = 0;
         fprintf(stderr, " %d", ir->arg);
         break;
