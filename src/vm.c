@@ -69,13 +69,15 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
 
 #if defined(MININEZ_USE_INDIRECT_THREADING)
 #define DISPATCH_NEXT() goto *__table[(++pc)->op]
-#define fail() \
+#define fail() goto L_fail
+#define FAIL_IMPL() do {\
   StackEntry fp = (failPoint);\
   pos = fp->pos;\
   pc = fp->jmp;\
   failPoint = fp->failPoint;\
   ctx->stack_pointer = fp;\
-  goto *__table[pc->op];
+  goto *__table[pc->op];\
+} while(0)
 #define JUMP_ADDR(ADDR) JUMP(pc = inst + ADDR)
 #define JUMP(PC) goto *__table[(PC)->op]
 #define RET(PC) JUMP(pc = PC)
@@ -108,7 +110,8 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     DISPATCH_NEXT();
   }
   OP_CASE(Ifail) {
-    fail();
+  L_fail:
+    FAIL_IMPL();
   }
   OP_CASE(Ialt) {
     failPoint = push_alt(ctx, pos, inst+pc->arg, failPoint);

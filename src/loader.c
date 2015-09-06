@@ -96,6 +96,8 @@ static uint32_t Loader_Read32(ByteCodeLoader *loader) {
   return read32(loader->input, loader->info);
 }
 
+#if MININEZ_DEBUG == 1
+
 static void dumpByteCodeInfo(ByteCodeInfo *info) {
   fprintf(stderr, "FileType: %s\n", info->fileType);
   fprintf(stderr, "Version: %c\n", info->version);
@@ -105,6 +107,7 @@ static void dumpByteCodeInfo(ByteCodeInfo *info) {
   fprintf(stderr, "setPoolSize: %u\n", info->setPoolSize);
   fprintf(stderr, "strPoolSize: %u\n", info->strPoolSize);
 }
+
 
 static char *write_char(char *p, unsigned char ch)
 {
@@ -173,6 +176,8 @@ static void dump_set(bitset_t *set, char *buf)
     *buf++ = ']';
     *buf++ = '\0';
 }
+
+#endif
 
 static int loadOpCode(ByteCodeLoader* loader, int* has_jump) {
   uint8_t opcode = Loader_Read8(loader);
@@ -360,8 +365,8 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
           }
         }
       }
-      dump_set(set, debug_buf);
 #if MININEZ_DEBUG == 1
+      dump_set(set, debug_buf);
       fprintf(stderr, "set: %s\n", debug_buf);
 #endif
     }
@@ -381,7 +386,9 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
     }
   }
 
+#if MININEZ_DEBUG == 1
   dumpByteCodeInfo(&info);
+#endif
 
   read16(buf, &info); // mininez doesn't use tag
   read16(buf, &info); // mininez doesn't use symbol table
