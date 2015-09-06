@@ -179,6 +179,9 @@ static int loadOpCode(ByteCodeLoader* loader, int* has_jump) {
   *has_jump = opcode & 0x80;
   opcode = opcode & 0x7f;
   switch (opcode) {
+    case 16:
+      opcode = MININEZ_OP_Instr;
+      break;
     case 20:
       opcode = MININEZ_OP_Iostr;
       break;
@@ -201,22 +204,25 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
   // exit fail case
   ir->op = MININEZ_OP_Iexit;
   ir->arg = 0;
+#if MININEZ_DEBUG == 1
   fprintf(stderr, "[0]%s %d\n", get_opname(ir->op), ir->arg);
+#endif
   ir++;
   // exit success case
   ir->op = MININEZ_OP_Iexit;
   ir->arg = 1;
+#if MININEZ_DEBUG == 1
   fprintf(stderr, "[1]%s %d\n", get_opname(ir->op), ir->arg);
+#endif
   ir++;
   int size = loader->info->instSize;
   for(i = 0; i < loader->info->instSize; i++) {
     assert(loader->info->pos < (int)loader->info->code_length);
     int has_jump = 0;
     uint8_t opcode = loadOpCode(loader, &has_jump);
+#if MININEZ_DEBUG == 1
     fprintf(stderr, "[%u]%s", i, get_opname(opcode));
-    if(i == 166) {
-      fprintf(stderr, "debug\n");
-    }
+#endif
     switch (opcode) {
       case MININEZ_OP_Iexit:
         ir->arg = Loader_Read8(loader);
@@ -226,11 +232,15 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
         uint16_t nterm = Loader_Read16(loader);
         ir->arg = Loader_Read24(loader) + 2;
         has_jump = 0;
+#if MININEZ_DEBUG == 1
         fprintf(stderr, " %u %d", nterm, ir->arg);
+#endif
         break;
       case MININEZ_OP_Ialt:
         ir->arg = Loader_Read24(loader) + 2;
+#if MININEZ_DEBUG == 1
         fprintf(stderr, " %d", ir->arg);
+#endif
         break;
       case MININEZ_OP_Ijump:
         if(has_jump) {
@@ -240,17 +250,23 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
         }
         Loader_Read24(loader);
         has_jump = 0;
+#if MININEZ_DEBUG == 1
         fprintf(stderr, " %d", ir->arg);
+#endif
         break;
       case MININEZ_OP_Iskip:
         ir->arg = Loader_Read24(loader) + 2;
         has_jump = 0;
+#if MININEZ_DEBUG == 1
         fprintf(stderr, " %d", ir->arg);
+#endif
         break;
       case MININEZ_OP_Ibyte:
       case MININEZ_OP_Inbyte:
         ir->arg = Loader_Read8(loader);
+#if MININEZ_DEBUG == 1
         fprintf(stderr, " '%c'", ir->arg);
+#endif
         break;
       case MININEZ_OP_Istr:
       case MININEZ_OP_Instr:
@@ -259,7 +275,9 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
       case MININEZ_OP_Ioset:
       case MININEZ_OP_Irset:
         ir->arg = Loader_Read16(loader);
+#if MININEZ_DEBUG == 1
         fprintf(stderr, " %u", ir->arg);
+#endif
         break;
       case MININEZ_OP_Ilabel: {
         uint16_t label = Loader_Read16(loader);
@@ -271,7 +289,9 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
       int jump = Loader_Read24(loader);
       fprintf(stderr, "\n[%u]error!!", i);
     }
+#if MININEZ_DEBUG == 1
     fprintf(stderr, "\n");
+#endif
     ir->op = opcode;
     ir++;
   }
@@ -315,7 +335,9 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
       char* str = peek(buf, &info);
       skip(&info, len+1);
       ctx->nterms[i] = pstring_alloc(str, (unsigned)len);
+#if MININEZ_DEBUG == 1
       fprintf(stderr, "nterm[%d]: %s\n", i, ctx->nterms[i]);
+#endif
     }
   }
 
@@ -339,7 +361,9 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
         }
       }
       dump_set(set, debug_buf);
+#if MININEZ_DEBUG == 1
       fprintf(stderr, "set: %s\n", debug_buf);
+#endif
     }
   }
 
@@ -351,7 +375,9 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
       char *str = peek(buf, &info);
       skip(&info, len + 1);
       ctx->strs[i] = pstring_alloc(str, (unsigned)len);
+#if MININEZ_DEBUG == 1
       fprintf(stderr, "str[%d]: '%s'\n", i, ctx->strs[i]);
+#endif
     }
   }
 

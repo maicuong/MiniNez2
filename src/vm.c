@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <getopt.h>
+#include <sys/time.h> // gettimeofday
 
 #include "vm.h"
 
@@ -86,7 +87,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
 #define OP_CASE_(OP) LABEL(OP):
 
 #if MININEZ_DEBUG == 1
-#define OP_CASE(OP) OP_CASE_(OP); fprintf(stderr, "%s (pos:%ld)\n", get_opname(pc->op), pos);
+#define OP_CASE(OP) OP_CASE_(OP); fprintf(stderr, "[%d] %s (pos:%ld)\n", pc - inst, get_opname(pc->op), pos);
 #else
 #define OP_CASE(OP) OP_CASE_(OP)
 #endif
@@ -98,7 +99,9 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
 
   OP_CASE(Iexit) {
     ctx->pos = pos;
+#if MININEZ_DEBUG == 1
     fprintf(stderr, "exit %d\n", pc->arg);
+#endif
     return pc->arg;
   }
   OP_CASE(Inop) {
@@ -216,10 +219,18 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     DISPATCH_NEXT();
   }
   OP_CASE(Ilabel) {
+#if MININEZ_DEBUG == 1
     fprintf(stderr, "%s\n", ctx->nterms[pc->arg]);
+#endif
     DISPATCH_NEXT();
   }
   return 0;
+}
+
+static uint64_t timer() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
 static void nez_ShowUsage(const char *file) {
@@ -263,6 +274,8 @@ int main(int argc, char *const argv[]) {
   }
   ctx = mininez_CreateContext(input_file);
   inst = loadMachineCode(ctx, syntax_file, "File");
+  uint64_t start, end;
+  start = timer();
   if(!mininez_vm_execute(ctx, inst)) {
     nez_PrintErrorInfo("parse error!!");
   } else if(ctx->pos != (long)ctx->input_size) {
@@ -270,5 +283,7 @@ int main(int argc, char *const argv[]) {
   } else {
     fprintf(stderr, "match!!\n");
   }
+  end = timer();
+  fprintf(stderr, "ErapsedTime: %llu msec\n", (unsigned long long)end - start);
   return 0;
 }

@@ -7,7 +7,7 @@
 #ifndef VM_H
 #define VM_H
 
-#define MININEZ_DEBUG 1
+#define MININEZ_DEBUG 0
 
 #define MININEZ_IR_EACH(OP)\
 	OP(Inop)\
@@ -74,8 +74,6 @@ static const char *get_opname(uint8_t opcode) {
   case MININEZ_OP_##OP:   \
     return "" #OP;
     MININEZ_IR_EACH(OP_DUMPCASE);
-	case 127:
-		return "Ilabel";
   default:
     fprintf(stderr, "%d\n", opcode);
     assert(0 && "UNREACHABLE");
