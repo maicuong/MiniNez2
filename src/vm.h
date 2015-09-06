@@ -24,6 +24,11 @@
 	OP(Iany)\
 	OP(Istr)\
 	OP(Iset)\
+	OP(Inbyte)\
+	OP(Instr)\
+	OP(Iostr)\
+	OP(Ioset)\
+	OP(Irset)\
 	OP(Iexit)\
 	OP(Ilabel)
 

@@ -174,6 +174,47 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     ++pos;
     DISPATCH_NEXT();
   }
+  OP_CASE(Inbyte) {
+    if(cur[pos] != pc->arg) {
+      DISPATCH_NEXT();
+    }
+    fail();
+  }
+	OP_CASE(Instr) {
+    const char* str = ctx->strs[pc->arg];
+    unsigned len = pstring_length(str);
+    if (pstring_starts_with(cur+pos, str, len) == 0) {
+      DISPATCH_NEXT();
+    }
+    fail();
+  }
+  OP_CASE(Iostr) {
+    const char* str = ctx->strs[pc->arg];
+    unsigned len = pstring_length(str);
+    if (pstring_starts_with(cur+pos, str, len) == 0) {
+      DISPATCH_NEXT();
+    }
+    pos += len;
+    DISPATCH_NEXT();
+  }
+  OP_CASE(Ioset) {
+    bitset_t set = ctx->sets[pc->arg];
+    if (!bitset_get(&set, cur[pos])) {
+      DISPATCH_NEXT();
+    }
+    ++pos;
+    DISPATCH_NEXT();
+  }
+  OP_CASE(Irset) {
+    while(1) {
+      bitset_t set = ctx->sets[pc->arg];
+      if (!bitset_get(&set, cur[pos])) {
+        break;
+      }
+      ++pos;
+    }
+    DISPATCH_NEXT();
+  }
   OP_CASE(Ilabel) {
     fprintf(stderr, "%s\n", ctx->nterms[pc->arg]);
     DISPATCH_NEXT();

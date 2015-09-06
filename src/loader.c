@@ -174,6 +174,27 @@ static void dump_set(bitset_t *set, char *buf)
     *buf++ = '\0';
 }
 
+static int loadOpCode(ByteCodeLoader* loader, int* has_jump) {
+  uint8_t opcode = Loader_Read8(loader);
+  *has_jump = opcode & 0x80;
+  opcode = opcode & 0x7f;
+  switch (opcode) {
+    case 20:
+      opcode = MININEZ_OP_Iostr;
+      break;
+    case 21:
+      opcode = MININEZ_OP_Ioset;
+      break;
+    case 25:
+      opcode = MININEZ_OP_Irset;
+      break;
+    case 127:
+      opcode = MININEZ_OP_Ilabel;
+      break;
+  }
+  return opcode;
+}
+
 void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Context ctx) {
   unsigned i;
   MiniNezInstruction* head = ir;
@@ -190,10 +211,12 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
   int size = loader->info->instSize;
   for(i = 0; i < loader->info->instSize; i++) {
     assert(loader->info->pos < (int)loader->info->code_length);
-    uint8_t opcode = Loader_Read8(loader);
-    int has_jump = opcode & 0x80;
-    opcode = opcode & 0x7f;
+    int has_jump = 0;
+    uint8_t opcode = loadOpCode(loader, &has_jump);
     fprintf(stderr, "[%u]%s", i, get_opname(opcode));
+    if(i == 166) {
+      fprintf(stderr, "debug\n");
+    }
     switch (opcode) {
       case MININEZ_OP_Iexit:
         ir->arg = Loader_Read8(loader);
@@ -225,26 +248,28 @@ void loadMiniNezInstruction(MiniNezInstruction* ir, ByteCodeLoader *loader, Cont
         fprintf(stderr, " %d", ir->arg);
         break;
       case MININEZ_OP_Ibyte:
+      case MININEZ_OP_Inbyte:
         ir->arg = Loader_Read8(loader);
         fprintf(stderr, " '%c'", ir->arg);
         break;
       case MININEZ_OP_Istr:
+      case MININEZ_OP_Instr:
+      case MININEZ_OP_Iostr:
       case MININEZ_OP_Iset:
+      case MININEZ_OP_Ioset:
+      case MININEZ_OP_Irset:
         ir->arg = Loader_Read16(loader);
         fprintf(stderr, " %u", ir->arg);
         break;
-      case 127:
-        opcode = MININEZ_OP_Ilabel;
+      case MININEZ_OP_Ilabel: {
         uint16_t label = Loader_Read16(loader);
         ir->arg = label;
         break;
+      }
     }
     if (has_jump) {
       int jump = Loader_Read24(loader);
-      ir++;
-      ir->op = MININEZ_OP_Ijump;
-      ir->arg = jump;
-      fprintf(stderr, "\n[%u]%s %d", i, get_opname(ir->op), ir->arg);
+      fprintf(stderr, "\n[%u]error!!", i);
     }
     fprintf(stderr, "\n");
     ir->op = opcode;
@@ -339,8 +364,8 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
   ** head is a tmporary variable that indecates the begining
   ** of the instruction sequence
   */
-  head = inst = malloc(sizeof(*inst) * (info.instSize));
-  memset(inst, 0, sizeof(*inst) * (info.instSize));
+  head = inst = malloc(sizeof(*inst) * (info.instSize + 2));
+  memset(inst, 0, sizeof(*inst) * (info.instSize + 2));
 
   /* init bytecode loader */
   ByteCodeLoader *loader = malloc(sizeof(ByteCodeLoader));
