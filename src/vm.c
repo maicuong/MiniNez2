@@ -394,17 +394,20 @@ int main(int argc, char *const argv[]) {
   ctx = mininez_CreateContext(input_file);
   inst = loadMachineCode(ctx, syntax_file, "File");
 #if MININEZ_LOAD_DEBUG == 0
-  uint64_t start, end;
-  start = timer();
-  if(!mininez_vm_execute(ctx, inst)) {
-    nez_PrintErrorInfo("parse error!!");
-  } else if(ctx->pos != (long)ctx->input_size) {
-    fprintf(stderr, "unconsumed!! pos=%ld size=%zu", ctx->pos, ctx->input_size);
-  } else {
-    fprintf(stderr, "match!!\n");
+  for(int i = 0; i < 5; i++) {
+    uint64_t start, end;
+    start = timer();
+    if(!mininez_vm_execute(ctx, inst)) {
+      nez_PrintErrorInfo("parse error!!");
+    } else if(ctx->pos != (long)ctx->input_size) {
+      fprintf(stderr, "unconsumed!! pos=%ld size=%zu", ctx->pos, ctx->input_size);
+    } else {
+      fprintf(stderr, "match!!\n");
+    }
+    end = timer();
+    fprintf(stderr, "ErapsedTime: %llu msec\n", (unsigned long long)end - start);
+    ctx->pos = 0;
   }
-  end = timer();
-  fprintf(stderr, "ErapsedTime: %llu msec\n", (unsigned long long)end - start);
 #endif
   return 0;
 }
