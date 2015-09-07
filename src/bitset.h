@@ -53,7 +53,7 @@ static inline void bitset_set(bitset_t *set, unsigned index)
     set->data[index / BITS] |= mask;
 }
 
-static inline int bitset_get(bitset_t *set, unsigned index)
+static inline int bitset_get(bitset_t *set, unsigned char index)
 {
     bitset_entry_t mask = ((bitset_entry_t)1) << (index % BITS);
     return (set->data[index / BITS] & mask) != 0;
