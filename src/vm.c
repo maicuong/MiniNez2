@@ -28,11 +28,21 @@ Context mininez_CreateContext(const char *filename) {
   return ctx;
 }
 
+#if STACK_USAGE == 1
+int max_stack_size = 0;
+#endif
+
 #if USE_STACK_ENTRY == 1
 static inline StackEntry push_alt(Context ctx, long pos, MiniNezInstruction* jmp, StackEntry fp) {
   ctx->stack_pointer->pos = pos;
   ctx->stack_pointer->jmp = jmp;
   ctx->stack_pointer->failPoint = fp;
+#if STACK_USAGE == 1
+  int used = ctx->stack_pointer - ctx->stack_pointer_base;
+  if(used > max_stack_size) {
+    max_stack_size = used;
+  }
+#endif
   return ctx->stack_pointer++;
 }
 #else
@@ -42,25 +52,55 @@ static inline long* push_alt(Context ctx, long pos, MiniNezInstruction* jmp, lon
   ctx->stack_pointer[1] = (long)jmp;
   ctx->stack_pointer[2] = (long)fp;
   ctx->stack_pointer += 3;
+#if STACK_USAGE == 1
+  int used = ctx->stack_pointer - ctx->stack_pointer_base;
+  if(used > max_stack_size) {
+    max_stack_size = used;
+  }
+#endif
   return ret;
 }
 #endif
 
 static inline void push_pos(Context ctx, long pos) {
 #if USE_STACK_ENTRY == 1
+#if STACK_USAGE == 1
+  int used = ctx->stack_pointer - ctx->stack_pointer_base;
+  if(used > max_stack_size) {
+    max_stack_size = used;
+  }
+#endif
   (ctx->stack_pointer++)->pos = pos;
 #else
   ctx->stack_pointer[0] = pos;
   ctx->stack_pointer++;
+#if STACK_USAGE == 1
+  int used = ctx->stack_pointer - ctx->stack_pointer_base;
+  if(used > max_stack_size) {
+    max_stack_size = used;
+  }
+#endif
 #endif
 }
 
 static inline void push_call(Context ctx, MiniNezInstruction* jmp) {
 #if USE_STACK_ENTRY == 1
+#if STACK_USAGE == 1
+  int used = ctx->stack_pointer - ctx->stack_pointer_base;
+  if(used > max_stack_size) {
+    max_stack_size = used;
+  }
+#endif
   (ctx->stack_pointer++)->jmp = jmp;
 #else
   ctx->stack_pointer[0] = (long)jmp;
   ctx->stack_pointer++;
+#if STACK_USAGE == 1
+  int used = ctx->stack_pointer - ctx->stack_pointer_base;
+  if(used > max_stack_size) {
+    max_stack_size = used;
+  }
+#endif
 #endif
 }
 
@@ -164,6 +204,9 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     ctx->pos = pos;
 #if MININEZ_DEBUG == 1
     fprintf(stderr, "exit %d\n", pc->arg);
+#endif
+#if STACK_USAGE == 1
+    fprintf(stderr, "stack_usage: %lu[byte]\n", max_stack_size * sizeof(*ctx->stack_pointer));
 #endif
     return pc->arg;
   }
