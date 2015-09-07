@@ -15,35 +15,81 @@ Context mininez_CreateContext(const char *filename) {
   Context ctx = (Context)malloc(sizeof(struct Context));
   ctx->input_size = 0;
   ctx->inputs = loadFile(filename, &ctx->input_size);
+#if USE_STACK_ENTRY == 1
   ctx->stack_pointer_base =
       (StackEntry)malloc(sizeof(struct StackEntry) * CONTEXT_MAX_STACK_LENGTH);
   ctx->stack_pointer = &ctx->stack_pointer_base[0];
+#else
+  ctx->stack_pointer_base =
+      (long* )malloc(sizeof(long) * CONTEXT_MAX_STACK_LENGTH);
+  ctx->stack_pointer = &ctx->stack_pointer_base[0];
+#endif
   ctx->stack_size = CONTEXT_MAX_STACK_LENGTH;
   return ctx;
 }
 
+#if USE_STACK_ENTRY == 1
 static inline StackEntry push_alt(Context ctx, long pos, MiniNezInstruction* jmp, StackEntry fp) {
   ctx->stack_pointer->pos = pos;
   ctx->stack_pointer->jmp = jmp;
   ctx->stack_pointer->failPoint = fp;
   return ctx->stack_pointer++;
 }
+#else
+static inline long* push_alt(Context ctx, long pos, MiniNezInstruction* jmp, long* fp) {
+  long* ret = ctx->stack_pointer;
+  ctx->stack_pointer[0] = pos;
+  ctx->stack_pointer[1] = (long)jmp;
+  ctx->stack_pointer[2] = (long)fp;
+  ctx->stack_pointer += 3;
+  return ret;
+}
+#endif
 
 static inline void push_pos(Context ctx, long pos) {
+#if USE_STACK_ENTRY == 1
   (ctx->stack_pointer++)->pos = pos;
+#else
+  ctx->stack_pointer[0] = pos;
+  ctx->stack_pointer++;
+#endif
 }
 
 static inline void push_call(Context ctx, MiniNezInstruction* jmp) {
+#if USE_STACK_ENTRY == 1
   (ctx->stack_pointer++)->jmp = jmp;
+#else
+  ctx->stack_pointer[0] = (long)jmp;
+  ctx->stack_pointer++;
+#endif
 }
 
+#if USE_STACK_ENTRY == 1
 static inline StackEntry peek(Context ctx) {
   return ctx->stack_pointer;
 }
 
-static inline StackEntry pop(Context ctx) {
-  return (--ctx->stack_pointer);
+static inline MiniNezInstruction* pop_jmp(Context ctx) {
+  return (--ctx->stack_pointer)->jmp;
 }
+
+static inline long pop_pos(Context ctx) {
+  return (--ctx->stack_pointer)->pos;
+}
+#else
+static inline long* peek(Context ctx) {
+  return ctx->stack_pointer;
+}
+
+static inline MiniNezInstruction* pop_jmp(Context ctx) {
+  --ctx->stack_pointer;
+  return (MiniNezInstruction*)ctx->stack_pointer[0];
+}
+
+static inline long pop_pos(Context ctx) {
+  return *(--ctx->stack_pointer);
+}
+#endif
 
 #define MININEZ_USE_INDIRECT_THREADING 1
 
@@ -51,7 +97,11 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   register const char *cur = ctx->inputs;
   register MiniNezInstruction *pc;
   register long pos = 0;
+#if USE_STACK_ENTRY == 1
   register StackEntry failPoint = ctx->stack_pointer;
+#else
+  register long* failPoint = ctx->stack_pointer;
+#endif
 
 #ifdef MININEZ_USE_SWITCH_CASE_DISPATCH
 #define DISPATCH_NEXT()         goto L_vm_head
@@ -70,6 +120,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
 #if defined(MININEZ_USE_INDIRECT_THREADING)
 #define DISPATCH_NEXT() goto *__table[(++pc)->op]
 #define fail() goto L_fail
+#if USE_STACK_ENTRY == 1
 #define FAIL_IMPL() do {\
   StackEntry fp = (failPoint);\
   pos = fp->pos;\
@@ -78,6 +129,16 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   ctx->stack_pointer = fp;\
   goto *__table[pc->op];\
 } while(0)
+#else
+#define FAIL_IMPL() do {\
+  long* fp = (failPoint);\
+  pos = fp[0];\
+  pc = (MiniNezInstruction *)fp[1];\
+  failPoint = (long*)fp[2];\
+  ctx->stack_pointer = fp;\
+  goto *__table[pc->op];\
+} while(0)
+#endif
 #define JUMP_ADDR(ADDR) JUMP(pc = inst + ADDR)
 #define JUMP(PC) goto *__table[(PC)->op]
 #define RET(PC) JUMP(pc = PC)
@@ -89,7 +150,7 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
 #define OP_CASE_(OP) LABEL(OP):
 
 #if MININEZ_DEBUG == 1
-#define OP_CASE(OP) OP_CASE_(OP); fprintf(stderr, "[%d] %s (pos:%ld)\n", pc - inst, get_opname(pc->op), pos);
+#define OP_CASE(OP) OP_CASE_(OP); fprintf(stderr, "[%ld] %s (pos:%ld)\n", pc - inst, get_opname(pc->op), pos);
 #else
 #define OP_CASE(OP) OP_CASE_(OP)
 #endif
@@ -119,7 +180,11 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
   }
   OP_CASE(Isucc) {
     ctx->stack_pointer = failPoint;
+#if USE_STACK_ENTRY == 1
     failPoint = failPoint->failPoint;
+#else
+    failPoint = (long*)failPoint[2];
+#endif
     DISPATCH_NEXT();
   }
   OP_CASE(Ijump) {
@@ -130,23 +195,31 @@ long mininez_vm_execute(Context ctx, MiniNezInstruction *inst) {
     JUMP_ADDR(pc->arg);
   }
   OP_CASE(Iret) {
-    StackEntry top = pop(ctx);
-    RET(top->jmp);
+    MiniNezInstruction* tmp = pop_jmp(ctx);
+    RET(tmp);
   }
   OP_CASE(Ipos) {
     push_pos(ctx, pos);
     DISPATCH_NEXT();
   }
   OP_CASE(Iback) {
-    pos = pop(ctx)->pos;
+    pos = pop_pos(ctx);
     DISPATCH_NEXT();
   }
   OP_CASE(Iskip) {
+#if USE_STACK_ENTRY == 1
     StackEntry top = peek(ctx);
     if(pos == top->pos) {
       fail();
     }
     failPoint->pos = pos;
+#else
+    long* top = peek(ctx);
+    if(pos == *top) {
+      fail();
+    }
+    failPoint[0] = pos;
+#endif
     JUMP_ADDR(pc->arg);
   }
   OP_CASE(Ibyte) {
@@ -277,6 +350,7 @@ int main(int argc, char *const argv[]) {
   }
   ctx = mininez_CreateContext(input_file);
   inst = loadMachineCode(ctx, syntax_file, "File");
+#if MININEZ_LOAD_DEBUG == 0
   uint64_t start, end;
   start = timer();
   if(!mininez_vm_execute(ctx, inst)) {
@@ -288,5 +362,6 @@ int main(int argc, char *const argv[]) {
   }
   end = timer();
   fprintf(stderr, "ErapsedTime: %llu msec\n", (unsigned long long)end - start);
+#endif
   return 0;
 }

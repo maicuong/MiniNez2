@@ -7,7 +7,9 @@
 #ifndef VM_H
 #define VM_H
 
-#define MININEZ_DEBUG 0
+#define MININEZ_DEBUG 1
+#define USE_STACK_ENTRY 0
+#define MININEZ_LOAD_DEBUG 1
 
 #define MININEZ_IR_EACH(OP)\
 	OP(Inop)\
@@ -44,11 +46,13 @@ typedef struct MiniNezInstruction {
 	short arg : 11;
 } MiniNezInstruction;
 
+#if USE_STACK_ENTRY == 1
 struct StackEntry {
   long pos;
   MiniNezInstruction* jmp;
 	struct StackEntry* failPoint;
 };
+#endif
 
 struct Context {
   char *inputs;
@@ -56,8 +60,14 @@ struct Context {
 	long pos;
 
   size_t stack_size;
+
+#if USE_STACK_ENTRY == 1
   struct StackEntry* stack_pointer;
   struct StackEntry* stack_pointer_base;
+#else
+	long* stack_pointer;
+	long* stack_pointer_base;
+#endif
 
 	const char** nterms;
 	bitset_t* sets;

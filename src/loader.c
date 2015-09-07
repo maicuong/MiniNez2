@@ -7,6 +7,9 @@
 #define CHAR_BIT 8
 #endif
 
+size_t malloc_size = 0;
+#define VM_MALLOC(N) malloc(N); malloc_size += N;
+
 typedef struct ByteCodeInfo {
   size_t code_length;
   int pos;
@@ -312,7 +315,10 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
   info.code_length = code_length;
   info.pos = 0;
 
+#if MININEZ_DEBUG == 1
   fprintf(stderr, "Bytecode file size: %zu[byte]\n", code_length);
+#endif
+
   /* load bytecode header */
 
   /* load file type */
@@ -348,7 +354,7 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
 
   info.setPoolSize = read16(buf, &info);
   if(info.setPoolSize > 0) {
-    ctx->sets = (bitset_t*) malloc(sizeof(bitset_t) * info.setPoolSize);
+    ctx->sets = (bitset_t*) VM_MALLOC(sizeof(bitset_t) * info.setPoolSize);
 #define INT_BIT (sizeof(int) * CHAR_BIT)
 #define N (256 / INT_BIT)
     for (i = 0; i < info.setPoolSize; i++) {
@@ -374,12 +380,13 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
 
   info.strPoolSize = read16(buf, &info);
   if(info.strPoolSize > 0) {
-    ctx->strs = (const char **) malloc(sizeof(const char *) * info.strPoolSize);
+    ctx->strs = (const char **) VM_MALLOC(sizeof(const char *) * info.strPoolSize);
     for (i = 0; i < info.strPoolSize; i++) {
       uint16_t len = read16(buf, &info);
       char *str = peek(buf, &info);
       skip(&info, len + 1);
       ctx->strs[i] = pstring_alloc(str, (unsigned)len);
+      malloc_size += sizeof(pstring_t) + len + 1;
 #if MININEZ_DEBUG == 1
       fprintf(stderr, "str[%d]: '%s'\n", i, ctx->strs[i]);
 #endif
@@ -397,7 +404,7 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
   ** head is a tmporary variable that indecates the begining
   ** of the instruction sequence
   */
-  head = inst = malloc(sizeof(*inst) * (info.instSize + 2));
+  head = inst = VM_MALLOC(sizeof(*inst) * (info.instSize + 2));
   memset(inst, 0, sizeof(*inst) * (info.instSize + 2));
 
   /* init bytecode loader */
@@ -407,6 +414,8 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
   loader->head = head;
 
   loadMiniNezInstruction(head, loader, ctx);
+
+  fprintf(stderr, "byte code memory: %zu [byte]\n", malloc_size);
 
   return head;
 }
