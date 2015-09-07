@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <assert.h>
-#include <moz/bitset.h>
-#include <moz/pstring.h>
+#include "bitset.h"
+#include "pstring.h"
 
 #ifndef VM_H
 #define VM_H

@@ -1,7 +1,4 @@
 #include <stdlib.h>
-#include <moz/pstring.h>
-
-#include "vm.h"
 
 #ifndef CHAR_BIT
 #define CHAR_BIT 8
@@ -9,6 +6,9 @@
 
 size_t malloc_size = 0;
 #define VM_MALLOC(N) malloc(N); malloc_size += N;
+
+#include "vm.h"
+#include "pstring.h"
 
 typedef struct ByteCodeInfo {
   size_t code_length;
@@ -386,7 +386,6 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
       char *str = peek(buf, &info);
       skip(&info, len + 1);
       ctx->strs[i] = pstring_alloc(str, (unsigned)len);
-      malloc_size += sizeof(pstring_t) + len + 1;
 #if MININEZ_DEBUG == 1
       fprintf(stderr, "str[%d]: '%s'\n", i, ctx->strs[i]);
 #endif
