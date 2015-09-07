@@ -352,6 +352,7 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
     }
   }
 
+  malloc_size = 0;
   info.setPoolSize = read16(buf, &info);
   if(info.setPoolSize > 0) {
     ctx->sets = (bitset_t*) VM_MALLOC(sizeof(bitset_t) * info.setPoolSize);
@@ -377,6 +378,8 @@ MiniNezInstruction* loadMachineCode(Context ctx, const char* code_file, const ch
 #endif
     }
   }
+
+  fprintf(stderr, "set: %zu[byte]\n", malloc_size);
 
   info.strPoolSize = read16(buf, &info);
   if(info.strPoolSize > 0) {
